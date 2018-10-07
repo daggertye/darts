@@ -6,7 +6,7 @@ def ifgsm(model, X, y, niters=10, epsilon=0.01, visualize=False):
     X_pert = X.clone()
     X_pert.requires_grad = True
     
-    for _ in range(niters):
+    for i in range(niters):
         output_perturbed = model(X_pert)
         loss = nn.CrossEntropyLoss()(output_perturbed, y)
         loss.backward()
@@ -23,5 +23,7 @@ def ifgsm(model, X, y, niters=10, epsilon=0.01, visualize=False):
         # adjust to be within [-1, 1]
         X_pert = X_pert.detach().clamp(-1, 1)
         X_pert.requires_grad = True
+        
+        X_pert.volatile = False;
         
     return X_pert
