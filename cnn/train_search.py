@@ -141,6 +141,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
     # get a random minibatch from the search queue with replacement
     input_search, target_search = next(iter(valid_queue))
+<<<<<<< HEAD
+=======
+    # input_search = ifgsm(input_search, target_search)
+>>>>>>> b5cd9784e77b6ccdbb94afea0d5f04c81274cd86
     input_search = Variable(input_search, requires_grad=False).cuda()
     target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
