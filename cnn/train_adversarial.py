@@ -42,6 +42,8 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
+parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
+parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -146,7 +148,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     input_search, target_search = next(iter(valid_queue))
     input_search = Variable(input_search).cuda()
     target_search = Variable(target_search).cuda(async=True)
-    input_search = ifgsm(model, input_search, target_search)
+    input_search = ifgsm(model, input_search, target_search, niters=args.niters, epsilon=args.eps)
     
     architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
@@ -181,7 +183,7 @@ def infer(valid_queue, model, criterion):
     # input = ifgsm(model, input, target)
 
     logits = model(input)
-    loss = criterion(logits, target)
+    loss = criterion(logits, target, niters=args.niters, epsilon=args.eps)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
@@ -203,7 +205,7 @@ def infer_minibatch(valid_queue, model, criterion):
     input, target = next(iter(valid_queue))
     input = Variable(input).cuda()
     target = Variable(target).cuda(async=True)
-    input = ifgsm(model, input, target)
+    input = ifgsm(model, input, target, niters=args.niters, epsilon=args.eps)
     logits = model(input)
     loss = criterion(logits, target)
     
