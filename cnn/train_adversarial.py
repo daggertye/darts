@@ -124,10 +124,10 @@ def main():
     logging.info('train_acc %f', train_acc)
 
     # validation
-    # valid_acc, valid_obj = infer(valid_queue, model, criterion)
-    # logging.info('valid_acc %f', valid_acc)
+    valid_acc, valid_obj = infer_minibatch(valid_queue, model, criterion)
+    logging.info('valid_acc %f', valid_acc)
     
-    infer_minibatch(valid_queue, model, criterion)
+    #infer_minibatch(valid_queue, model, criterion)
 
     utils.save(model, os.path.join(args.save, 'weights_' + str(epoch) + '.pt'))
 
@@ -197,28 +197,32 @@ def infer(valid_queue, model, criterion):
   return top1.avg, objs.avg
 
 def infer_minibatch(valid_queue, model, criterion):
-    objs = utils.AvgrageMeter()
-    top1 = utils.AvgrageMeter()
-    top5 = utils.AvgrageMeter()
-    model.eval()
-    
-    input, target = next(iter(valid_queue))
-    input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+  objs = utils.AvgrageMeter()
+  top1 = utils.AvgrageMeter()
+  top5 = utils.AvgrageMeter()
+  model.eval()
+
+  for step, (input, target) in enumerate(valid_queue):
+    input = Variable(input, volatile=False).cuda()
+    target = Variable(target, volatile=False).cuda(async=True)
     input = ifgsm(model, input, target, niters=args.niters, epsilon=args.eps)
+    
+    input.requires_grad = False
+    target.requires_grad = False
+
     logits = model(input)
     loss = criterion(logits, target)
-    
+
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    
     objs.update(loss.data[0], n)
     top1.update(prec1.data[0], n)
     top5.update(prec5.data[0], n)
 
-    logging.info('valid %03d %e %f %f', 0, objs.avg, top1.avg, top5.avg)
-    
-    return top1.avg, objs.avg
+    if step % args.report_freq == 0:
+      logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+
+  return top1.avg, objs.avg
 
 
 if __name__ == '__main__':

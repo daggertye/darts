@@ -43,8 +43,10 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
-parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
+#parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
+#parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
+parser.add_argument('--img_path', type=str, default="", help='path to adversarial images')
+parser.add_argument('--lbl_path', type=str, default="", help='path to adversarial labels')
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -94,16 +96,21 @@ def main():
   indices = list(range(num_train))
   split = int(np.floor(args.train_portion * num_train))
 
-  arch_data = AdvCifar10('resnet_imgs.npy', 'resnet_lbls.npy')
+  arch_data = AdvCifar10(args.img_path, args.lbl_path)
   
 
   train_queue = torch.utils.data.DataLoader(
-      arch_data, batch_size=args.batch_size,
+      train_data, batch_size=args.batch_size,
       sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
       pin_memory=True, num_workers=2)
 
   valid_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
+      sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
+      pin_memory=True, num_workers=2)
+
+  arch_queue = torch.utils.data.DataLoader(
+      arch_data, batch_size=args.batch_size,
       sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
       pin_memory=True, num_workers=2)
 
@@ -124,12 +131,14 @@ def main():
     print(F.softmax(model.alphas_reduce, dim=-1))
 
     # training
-    train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
+    train_acc, train_obj = train(train_queue, arch_queue, model, architect, criterion, optimizer, lr)
     logging.info('train_acc %f', train_acc)
 
-    # validation
+    # validation and adversarial
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
     logging.info('valid_acc %f', valid_acc)
+    adv_acc, adv_obj = infer(arch_queue, model, criterion)
+    logging.info('adv_acc %f', adv_acc)
     
     # infer_minibatch(valid_queue, model, criterion)
 
