@@ -190,8 +190,8 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+    input = Variable(input, volatile=False).cuda()
+    target = Variable(target, volatile=False).cuda(async=True)
     # input = ifgsm(model, input, target)
 
     logits = model(input)
