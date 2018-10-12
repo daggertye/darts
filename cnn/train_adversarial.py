@@ -86,7 +86,7 @@ def main():
       momentum=args.momentum,
       weight_decay=args.weight_decay)
 
-  train_transform, valid_transform = utils._data_transforms_cifar10(args)
+  train_transform, valid_transform = utils._data_transforms_cifar10_simple(args)
   train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
 
   num_train = len(train_data)
@@ -124,8 +124,12 @@ def main():
     logging.info('train_acc %f', train_acc)
 
     # validation
-    valid_acc, valid_obj = infer_minibatch(valid_queue, model, criterion)
+    valid_acc, valid_obj = infer(valid_queue, model, criterion)
     logging.info('valid_acc %f', valid_acc)
+    
+    # adversarial testing
+    adv_acc, adv_obj = infer_minibatch(valid_queue, model, criterion)
+    logging.info('adv_acc %f', adv_acc)
     
     #infer_minibatch(valid_queue, model, criterion)
 
@@ -183,7 +187,7 @@ def infer(valid_queue, model, criterion):
     # input = ifgsm(model, input, target)
 
     logits = model(input)
-    loss = criterion(logits, target, niters=args.niters, epsilon=args.eps)
+    loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
@@ -207,8 +211,10 @@ def infer_minibatch(valid_queue, model, criterion):
     target = Variable(target, volatile=False).cuda(async=True)
     input = ifgsm(model, input, target, niters=args.niters, epsilon=args.eps)
     
-    input.requires_grad = False
-    target.requires_grad = False
+    input.detach_()
+    input.volatile = True
+    target.detach_()
+    target.volatile = True
 
     logits = model(input)
     loss = criterion(logits, target)
@@ -221,6 +227,9 @@ def infer_minibatch(valid_queue, model, criterion):
 
     if step % args.report_freq == 0:
       logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+    
+    del input
+    del target
 
   return top1.avg, objs.avg
 
