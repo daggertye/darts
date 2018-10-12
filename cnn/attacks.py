@@ -73,8 +73,7 @@ def step_ll(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
         output_ll = min_one_hot(output_perturbed)
         loss = nn.CrossEntropyLoss()(output_ll, y)
         loss.backward()
-        grad = X_pert.grad.detach()
-        pert = learning_rate/torch.max() * grad
+        pert = learning_rate * X_pert.grad.detach().sign()
 
         # add perturbation
         X_pert = X_pert.detach() - pert
