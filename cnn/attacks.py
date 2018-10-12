@@ -1,6 +1,8 @@
 import torch
 import torchvision
 import torch.nn as nn
+import numpy as np
+from torch.autograd import Variable
 
 def ifgsm(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
     X_pert = X.clone()
@@ -55,23 +57,26 @@ def pgd(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
         
     return X_pert
 
-def min_one_hot(x):
-    y = torch.FloatTensor(x.size(0), x.size(1)).zero_()
-    for i in range(len(x)):
+def min_indices(x):
+    y = torch.LongTensor(x.size(0)).zero_()
+    for i in range(x.size(0)):
         for j in range(x.size(1)):
-            if x[i][j] == torch.min(x[i]):
-                y[i][j] = 1
+            x_ = x.clone().cpu().data.numpy()
+            if np.min(x_, 1)[i] == x_[i][j]:
+                y[i] = j
                 break
-    return y
+    return Variable(y).cuda()
 
-def step_ll(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
+def step_ll(model, X, niters=10, epsilon=0.01, learning_rate=0.01):
     X_pert = X.clone()
     X_pert.requires_grad = True
     
     for i in range(niters):
         output_perturbed = model(X_pert)
-        output_ll = min_one_hot(output_perturbed)
-        loss = nn.CrossEntropyLoss()(output_ll, y)
+        output_ll = min_indices(output_perturbed)
+        #print(type(output_ll))
+        #print(type(output_perturbed))
+        loss = nn.CrossEntropyLoss()(output_perturbed, output_ll)
         loss.backward()
         pert = learning_rate * X_pert.grad.detach().sign()
 

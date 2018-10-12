@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from model_search import Network
 from architect import Architect
-from attacks import ifgsm
+from attacks import *
 
 
 parser = argparse.ArgumentParser("cifar")
@@ -44,6 +44,7 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='lear
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
 parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
+parser.add_argument('--adv_rate', type=float, default=0.01, help='learning rate of adversarial examples')
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -145,16 +146,20 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     model.train()
     n = input.size(0)
 
-    input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda(async=True)
+    input = Variable(input).cuda()
+    target = Variable(target).cuda(async=True)
+    
+    input_pert = step_ll(model, input, niters=args.niters, epsilon=args.eps, learning_rate=args.adv_rate)
 
     # get a random minibatch from the search queue with replacement
     input_search, target_search = next(iter(valid_queue))
     input_search = Variable(input_search).cuda()
     target_search = Variable(target_search).cuda(async=True)
-    input_search = ifgsm(model, input_search, target_search, niters=args.niters, epsilon=args.eps)
+    input_search = ifgsm(model, input_search, target_search, niters=args.niters, epsilon=args.eps, learning_rate=args.adv_rate)
     
-    architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+    input_comb = torch.cat([input_search, input_pert]).cuda()
+    target_comb = torch.cat([target, target]).cuda()
+    architect.step(input_comb, target_comb, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
     logits = model(input)
@@ -171,6 +176,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+    
+    del input
+    del target
 
   return top1.avg, objs.avg
 
@@ -209,7 +217,7 @@ def infer_minibatch(valid_queue, model, criterion):
   for step, (input, target) in enumerate(valid_queue):
     input = Variable(input, volatile=False).cuda()
     target = Variable(target, volatile=False).cuda(async=True)
-    input = ifgsm(model, input, target, niters=args.niters, epsilon=args.eps)
+    input = ifgsm(model, input, target, niters=args.niters, epsilon=args.eps, learning_rate=args.adv_rate)
     
     input.detach_()
     input.volatile = True
