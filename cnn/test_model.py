@@ -75,12 +75,11 @@ model.cuda()
 model.load_state_dict(torch.load(os.path.join(args.weights_path, weights_dict[args.model])))
 
 def _data_transforms_cifar10():
-    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
-    '''
+    #CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+    #CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+    
     CIFAR_MEAN = [0.5, 0.5, 0.5]
     CIFAR_STD = [0.5, 0.5, 0.5]
-    '''
 
     train_transform = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -119,7 +118,7 @@ for step, (input, target) in enumerate(train_queue):
     logits = model(input_pert)
     
     n = input.size(0)
-    prec1, prec5  = prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     top1.update(prec1.item(), n)
     top5.update(prec5.item(), n)
     

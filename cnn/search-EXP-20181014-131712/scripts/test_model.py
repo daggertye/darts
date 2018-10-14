@@ -1,4 +1,3 @@
-#to be run with torch-0.4
 import torch
 import torchvision
 import numpy as np
@@ -8,6 +7,9 @@ import os
 import os.path
 import argparse
 import torch.nn as nn
+import utils
+import logging
+import sys
 
 from cifar10models import *
 from torchvision.models import *
@@ -28,14 +30,21 @@ weights_dict = {
     'resnet18' : 'resnet18_epoch_347_acc_94.77.pth',
     'senet18' : 'senet18_epoch_279_acc_94.59.pth'
 }
-
-parser = argparse.ArgumentParser("cifar")
+parser = argparse.ArgumentParser("cifar testing")
 parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
 parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
 parser.add_argument('--adv_rate', type=float, default=0.01, help='learning rate of adversarial examples')
 parser.add_argument('--model', type=str, default="", help='googlenet, densenet121, resnet18, senet18')
 parser.add_argument('--weights_path', type=str, default='../../../../share/cuvl/weights/cifar10/', help='weight directory')
 args = parser.parse_args()
+
+log_format = '%(asctime)s %(message)s'
+logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+    format=log_format, datefmt='%m/%d %I:%M:%S %p')
+fh = logging.FileHandler(os.path.join('attacked_results', args.model + '_' + str(args.eps) + '_' + str(args.niters) + '_' + str(args.adv_rate) + '.txt'))
+fh.setFormatter(logging.Formatter(log_format))
+logging.getLogger().addHandler(fh)
+
 
 def ifgsm(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
     X_pert = X.clone()
@@ -66,9 +75,12 @@ model.cuda()
 model.load_state_dict(torch.load(os.path.join(args.weights_path, weights_dict[args.model])))
 
 def _data_transforms_cifar10():
-    
+    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+    '''
     CIFAR_MEAN = [0.5, 0.5, 0.5]
     CIFAR_STD = [0.5, 0.5, 0.5]
+    '''
 
     train_transform = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -90,35 +102,27 @@ num_train = len(train_data)
 indices = list(range(num_train))
 split = int(np.floor(0.5 * num_train))
 
-train_tensors = []
-train_label = []
-
-for i in range(num_train):
-    train_tensors.append(train_data[i][0])
-    train_label.append(train_data[i][1])
-
-num_train = len(train_data)
-indices = list(range(num_train))
-split = int(np.floor(0.5 * num_train))
-
 train_queue = torch.utils.data.DataLoader(
     train_data, batch_size=64,
     sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:]),
     pin_memory=True, num_workers=2)
 
+top1 = utils.AvgrageMeter()
+top5 = utils.AvgrageMeter()
 
-perturbed_images = []
-perturbed_labels = []
-for step, (input, target) in tqdm(enumerate(train_queue)):
+for step, (input, target) in enumerate(train_queue):
     input = Variable(input).cuda()
     target = Variable(target).cuda()
     
-    input = ifgsm(model, input, target, epsilon=args.eps, niters=args.niters, learning_rate=args.adv_rate)
-    perturbed_images.append(input)
-    perturbed_labels.append(target)
+    input_pert = ifgsm(model, input, target, epsilon=args.eps, niters=args.niters, learning_rate=args.adv_rate)
+    input_pert = input_pert.detach()
+    logits = model(input_pert)
     
-pert_imgs = torch.cat(perturbed_images)
-pert_lbls = torch.cat(perturbed_labels)
-save_lbl = './adversarial_data/' + args.model + '_' + str(args.eps) + '_' + str(args.niters) + '_' + str(args.adv_rate)
-np.save(save_lbl + '_imgs.npy', pert_imgs.cpu().detach().numpy())
-np.save(save_lbl + '_lbls.npy', pert_lbls.cpu().detach().numpy())
+    n = input.size(0)
+    prec1, prec5  = prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+    top1.update(prec1.item(), n)
+    top5.update(prec5.item(), n)
+    
+    if step % 50 == 0:
+        logging.info('valid %03d %f %f', step, top1.avg, top5.avg)
+    
