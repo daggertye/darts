@@ -39,7 +39,7 @@ def pgd(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
         loss = nn.CrossEntropyLoss()(output_perturbed, y)
         loss.backward()
         grad = X_pert.grad.detach()
-        pert = learning_rate/torch.max() * grad
+        pert = learning_rate/torch.max(grad) * grad
 
         # add perturbation
         X_pert = X_pert.detach() + pert
@@ -67,16 +67,17 @@ def min_indices(x):
                 break
     return Variable(y).cuda()
 
-def step_ll(model, X, niters=10, epsilon=0.01, learning_rate=0.01):
+def step_ll(model, X, y, niters=10, epsilon=0.01, learning_rate=0.01):
     X_pert = X.clone()
+    X_ = X.clone()
     X_pert.requires_grad = True
+    X_.requires_grad = True
+    output_normal = model(X_)
+    output_min = min_indices(output_normal)
     
     for i in range(niters):
         output_perturbed = model(X_pert)
-        output_ll = min_indices(output_perturbed)
-        #print(type(output_ll))
-        #print(type(output_perturbed))
-        loss = nn.CrossEntropyLoss()(output_perturbed, output_ll)
+        loss = nn.CrossEntropyLoss()(output_perturbed, output_min)
         loss.backward()
         pert = learning_rate * X_pert.grad.detach().sign()
 

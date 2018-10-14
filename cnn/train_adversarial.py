@@ -18,6 +18,11 @@ from model_search import Network
 from architect import Architect
 from attacks import *
 
+adv_attacks = {
+    'pgd' : pgd,
+    'ifgsm' : ifgsm,
+    'step_ll' : step_ll
+}
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
@@ -45,6 +50,10 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weigh
 parser.add_argument('--eps', type=float, default=0.01, help='epsilon value for ifgsm attack')
 parser.add_argument('--niters', type=int, default=10, help='number of iterations for ifgsm attack')
 parser.add_argument('--adv_rate', type=float, default=0.01, help='learning rate of adversarial examples')
+parser.add_argument('--adv_train', type=str, default='ifgsm', help='attack to use')
+parser.add_argument('--eps_', type=float, default=0.01, help='epsilon value for ifgsm attack adv training')
+parser.add_argument('--niters_', type=int, default=10, help='number of iterations for ifgsm attack adv training')
+parser.add_argument('--adv_rate_', type=float, default=0.01, help='learning rate of adversarial examples adv training')
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -149,7 +158,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     input = Variable(input).cuda()
     target = Variable(target).cuda(async=True)
     
-    input_pert = step_ll(model, input, niters=args.niters, epsilon=args.eps, learning_rate=args.adv_rate)
+    input_pert = adv_attacks[args.adv_train](model, input, target, niters=args.niters_, epsilon=args.eps_, learning_rate=args.adv_rate_)
 
     # get a random minibatch from the search queue with replacement
     input_search, target_search = next(iter(valid_queue))
@@ -157,7 +166,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     target_search = Variable(target_search).cuda(async=True)
     input_search = ifgsm(model, input_search, target_search, niters=args.niters, epsilon=args.eps, learning_rate=args.adv_rate)
     
-    input_comb = torch.cat([input_search, input_pert]).cuda()
+    input_comb = torch.cat([input, input_pert]).cuda()
     target_comb = torch.cat([target, target]).cuda()
     architect.step(input_comb, target_comb, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
@@ -190,8 +199,8 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input, volatile=False).cuda()
-    target = Variable(target, volatile=False).cuda(async=True)
+    input = Variable(input, volatile=True).cuda()
+    target = Variable(target, volatile=True).cuda(async=True)
     # input = ifgsm(model, input, target)
 
     logits = model(input)
