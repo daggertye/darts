@@ -1,6 +1,5 @@
 # results
 *.pt
-*.txt
 *.npy
 
 # Byte-compiled / optimized / DLL files
@@ -105,7 +104,9 @@ ENV/
 
 # mypy
 .mypy_cache/
-search-*/
+# search-*/
+search-*/scripts/*.py
+!search-*/log.txt
 eval-*/
 runs/
 

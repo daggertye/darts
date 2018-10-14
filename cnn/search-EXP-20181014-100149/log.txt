@@ -1,0 +1,10 @@
+2018-10-14 10:01:49,789 gpu device = 0
+2018-10-14 10:01:49,789 args = Namespace(adv_rate=0.03, adv_rate_=0.01, adv_train='step_ll', arch_learning_rate=0.0003, arch_weight_decay=0.001, batch_size=64, cutout=False, cutout_length=16, data='../data', drop_path_prob=0.3, epochs=50, eps=0.03, eps_=0.01, gpu=0, grad_clip=5, init_channels=16, layers=8, learning_rate=0.025, learning_rate_min=0.001, model_path='saved_models', momentum=0.9, niters=50, niters_=10, report_freq=50, save='search-EXP-20181014-100149', seed=2, train_portion=0.5, unrolled=False, weight_decay=0.0003)
+2018-10-14 10:01:52,544 param size = 1.930618MB
+2018-10-14 10:01:53,737 epoch 0 lr 2.500000e-02
+2018-10-14 10:01:53,738 genotype = Genotype(normal=[('max_pool_3x3', 0), ('dil_conv_3x3', 1), ('max_pool_3x3', 1), ('dil_conv_3x3', 2), ('avg_pool_3x3', 0), ('sep_conv_3x3', 3), ('dil_conv_3x3', 4), ('avg_pool_3x3', 2)], normal_concat=range(2, 6), reduce=[('avg_pool_3x3', 1), ('avg_pool_3x3', 0), ('sep_conv_5x5', 2), ('dil_conv_3x3', 1), ('skip_connect', 3), ('dil_conv_5x5', 0), ('sep_conv_3x3', 1), ('avg_pool_3x3', 4)], reduce_concat=range(2, 6))
+2018-10-14 10:02:40,329 train 000 2.436792e+00 4.687500 45.312500
+2018-10-14 10:36:37,690 train 050 1.998251e+00 25.919118 80.484069
+2018-10-14 11:10:37,944 train 100 1.893567e+00 29.331683 83.477723
+2018-10-14 11:44:38,509 train 150 1.810684e+00 32.398593 85.254553
+2018-10-14 12:18:40,097 train 200 1.746261e+00 35.090174 86.637127
